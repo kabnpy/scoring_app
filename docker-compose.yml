@@ -1,0 +1,71 @@
+# docker-compose.yml
+#
+# this file defines and sets up two services: a web server (apache with php) 
+# and a mysql database.
+
+services:
+  # web service (apache + php)
+  web:
+    build: .
+    container_name: scoring-app-web
+    ports:
+      - "80:80"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      phpmyadmin:
+        condition: service_started
+    environment:
+      MYSQL_HOST: db
+    networks:
+      - app-network
+
+  # database service (mysql)
+  db:
+    image: mysql:8.0
+    container_name: scoring-app-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: scoring_app
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-ppassword"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - app-network
+
+  # optional: phpmyadmin for easy database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: scoring-app-phpmyadmin
+    links:
+      - db:mysql
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+# define named volumes for data persistence
+volumes:
+  db_data:
+
+# define a custom network for inter-container communication
+networks:
+  app-network:
+    driver: bridge
